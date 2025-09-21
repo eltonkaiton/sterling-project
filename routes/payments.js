@@ -1,56 +1,61 @@
+// routes/payments.js
 const express = require('express');
 const router = express.Router();
 const Payment = require('../models/Payment');
 
-// POST /api/payments → Add a new payment
+// @route   POST /api/payments
+// @desc    Create a new payment
 router.post('/', async (req, res) => {
   try {
-    const payment = new Payment(req.body);
+    const { reference, insured, date, amount, method } = req.body;
+
+    const payment = new Payment({ reference, insured, date, amount, method });
     await payment.save();
-    res.status(201).json({ message: 'Payment created', payment });
+
+    res.status(201).json({ message: 'Payment added successfully', payment });
   } catch (err) {
-    res.status(500).json({ message: 'Error creating payment', error: err.message });
+    res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// GET /api/payments → List with search + pagination
+// @route   GET /api/payments
+// @desc    Get payments with search + pagination
 router.get('/', async (req, res) => {
-  const { search = '', page = 1, limit = 10 } = req.query;
-
-  const query = search
-    ? {
-        $or: [
-          { reference: new RegExp(search, 'i') },
-          { claimant: new RegExp(search, 'i') }
-        ]
-      }
-    : {};
-
   try {
-    const payments = await Payment.find(query)
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit));
+    const { search = '', page = 1, limit = 5 } = req.query;
+
+    const query = {
+      $or: [
+        { reference: { $regex: search, $options: 'i' } },
+        { insured: { $regex: search, $options: 'i' } },
+        { method: { $regex: search, $options: 'i' } },
+      ],
+    };
+
     const total = await Payment.countDocuments(query);
+    const payments = await Payment.find(query)
+      .sort({ date: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
 
     res.json({
       payments,
-      total,
-      page: parseInt(page),
-      pages: Math.ceil(total / limit)
+      page: Number(page),
+      pages: Math.ceil(total / limit),
     });
   } catch (err) {
-    res.status(500).json({ message: 'Error fetching payments', error: err.message });
+    res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// DELETE /api/payments/:id
+// @route   DELETE /api/payments/:id
+// @desc    Delete a payment
 router.delete('/:id', async (req, res) => {
   try {
-    const deleted = await Payment.findByIdAndDelete(req.params.id);
-    if (!deleted) return res.status(404).json({ message: 'Payment not found' });
+    await Payment.findByIdAndDelete(req.params.id);
     res.json({ message: 'Payment deleted' });
   } catch (err) {
-    res.status(500).json({ message: 'Error deleting payment', error: err.message });
+    res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 

@@ -1,8 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
+const Claim = require('../models/Claim'); // Needed for claim deletion
 
+// ==========================
 // GET /api/users
+// Get all users with optional status, search, pagination
+// ==========================
 router.get('/', async (req, res) => {
   const { status, search = '', page = 1, limit = 5 } = req.query;
 
@@ -19,12 +23,15 @@ router.get('/', async (req, res) => {
 
     res.json({ users, total });
   } catch (err) {
+    console.error('Error fetching users:', err);
     res.status(500).json({ message: err.message });
   }
 });
 
+// ==========================
 // PATCH /api/users/:id/status
-// Update user status (active, rejected, suspended, etc.)
+// Update user status (active, pending, blocked, etc.)
+// ==========================
 router.patch('/:id/status', async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
@@ -50,8 +57,41 @@ router.patch('/:id/status', async (req, res) => {
   }
 });
 
+// ==========================
+// PUT /api/users/:id
+// Edit user info (name, email, role)
+// ==========================
+router.put('/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, email, role } = req.body;
+
+  if (!name || !email || !role) {
+    return res.status(400).json({ message: 'Name, email, and role are required' });
+  }
+
+  try {
+    const user = await User.findByIdAndUpdate(
+      id,
+      { name, email, role },
+      { new: true }
+    );
+
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    res.json({
+      message: 'User updated successfully',
+      user
+    });
+  } catch (err) {
+    console.error('Error editing user:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ==========================
 // DELETE /api/users/:id
 // Delete a user by ID
+// ==========================
 router.delete('/:id', async (req, res) => {
   const { id } = req.params;
 
@@ -64,6 +104,25 @@ router.delete('/:id', async (req, res) => {
   } catch (err) {
     console.error('Error deleting user:', err);
     res.status(500).json({ message: err.message });
+  }
+});
+
+// ==========================
+// DELETE /api/claims/:id
+// Delete a claim by ID
+// ==========================
+router.delete('/claims/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const claim = await Claim.findByIdAndDelete(id);
+
+    if (!claim) return res.status(404).json({ message: 'Claim not found' });
+
+    res.json({ message: 'Claim deleted successfully', claim });
+  } catch (err) {
+    console.error('Error deleting claim:', err);
+    res.status(500).json({ message: 'Failed to delete claim', error: err.message });
   }
 });
 

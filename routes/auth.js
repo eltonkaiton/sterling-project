@@ -1,97 +1,52 @@
+// routes/auth.js
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken'); // ✅ JWT
+const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-// Secret key (use env var in production!)
-const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
-
-// ----------------------
-// Login
-// ----------------------
-router.post('/login', async (req, res) => {
-  const { email, password } = req.body; // removed acceptedTerms
-
-  console.log('📥 Login attempt received');
-  console.log('📧 Email:', email);
-
-  try {
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      console.log('❌ User not found for email:', email);
-      return res.status(401).json({ message: 'Invalid email or password' });
-    }
-
-    console.log('✅ User found:', user.email);
-
-    const isMatch = await bcrypt.compare(password, user.password);
-
-    if (!isMatch) {
-      console.log('❌ Incorrect password for:', user.email);
-      return res.status(401).json({ message: 'Invalid email or password' });
-    }
-
-    if (user.role !== 'admin') {
-      console.log('❌ Access denied for non-admin user:', user.email);
-      return res.status(403).json({ message: 'Access denied: Admins only' });
-    }
-
-    if (user.status !== 'active') {
-      console.log(`❌ User is not active (status = ${user.status}):`, user.email);
-      return res.status(403).json({ message: `Account is ${user.status}` });
-    }
-
-    console.log('✅ Login successful for:', user.email);
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      JWT_SECRET,
-      { expiresIn: "1h" }
-    );
-
-    // Respond with token + user info
-    res.json({
-      message: 'Login successful',
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        status: user.status
-      },
-    });
-
-  } catch (err) {
-    console.error('💥 Server error during login:', err);
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
-});
+const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 
 // ----------------------
 // Register
 // ----------------------
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    let { name, email, password, role } = req.body;
 
-    // Check if user already exists
-    const existing = await User.findOne({ email });
-    if (existing) return res.status(400).json({ message: 'User already exists' });
+    // Trim and sanitize
+    name = name?.trim();
+    email = email?.trim().toLowerCase();
+    role = role || 'client'; // default role
 
-    // Hash password
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: 'Invalid email format' });
+    }
+
+    // Password length
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'Email already exists' });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create new user
     const newUser = new User({
       name,
       email,
       password: hashedPassword,
-      role: role || 'client',
-      status: 'pending', // default status
+      role,
+      status: role === 'admin' ? 'active' : 'pending', // admins active by default
     });
 
     await newUser.save();
@@ -99,17 +54,76 @@ router.post('/register', async (req, res) => {
     res.status(201).json({
       message: 'User registered successfully',
       user: {
-        id: newUser._id,
+        userId: newUser._id,
         name: newUser.name,
         email: newUser.email,
         role: newUser.role,
-        status: newUser.status
-      }
+        status: newUser.status,
+      },
     });
   } catch (err) {
-    console.error('💥 Registration error:', err);
-    res.status(500).json({ message: err.message });
+    console.error('Registration error:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-module.exports = router;//update and paste full updated code 
+// ----------------------
+// Login
+// ----------------------
+router.post('/login', async (req, res) => {
+  const { email, password, source } = req.body; // source: 'web' or 'mobile'
+
+  if (!email || !password) {
+    return res.status(400).json({ message: 'Email and password required' });
+  }
+
+  try {
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    // Check status
+    if (user.status !== 'active') {
+      return res.status(403).json({ message: `Account is currently ${user.status}.` });
+    }
+
+    // Role-based access
+    if (source === 'web' && user.role !== 'admin') {
+      return res.status(403).json({ message: 'Only admins can log in via web' });
+    }
+
+    if (source === 'mobile' && !['client', 'surveyor'].includes(user.role)) {
+      return res.status(403).json({ message: 'Access denied: Only clients or surveyors can log in via mobile' });
+    }
+
+    // Generate JWT
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      message: 'Login successful',
+      token,
+      user: {
+        userId: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+      },
+    });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+module.exports = router;
