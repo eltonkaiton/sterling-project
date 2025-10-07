@@ -1,4 +1,4 @@
-// server.js (or index.js)
+// server.js
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -17,6 +17,7 @@ app.use('/api/claims', require('./routes/claims')); // ✅ Claims route
 app.use('/api/payments', require('./routes/payments'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/surveyors', require('./routes/surveyors')); // ✅ Surveyors route
 
 // MongoDB Atlas connection string
 const mongoURI =

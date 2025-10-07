@@ -14,6 +14,10 @@ const UserSchema = new mongoose.Schema({
     lowercase: true, 
     trim: true 
   },
+  phone: { 
+    type: String, 
+    trim: true 
+  }, // ✅ add phone field
   password: { 
     type: String, 
     required: true 
@@ -28,13 +32,13 @@ const UserSchema = new mongoose.Schema({
       "finance", 
       "loss_adjuster", 
       "service_manager"
-    ], // ✅ expanded roles
+    ],
     default: "client"
   },
   status: {
     type: String,
     enum: ["active", "pending", "suspended", "rejected"], 
-    default: "pending" // ✅ new users must be approved
+    default: "pending"
   },
   createdAt: { 
     type: Date, 
@@ -42,9 +46,9 @@ const UserSchema = new mongoose.Schema({
   }
 });
 
-// ✅ Pre-save hook to hash password
+// Hash password before save
 UserSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next(); // only hash if changed/new
+  if (!this.isModified("password")) return next();
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
@@ -54,7 +58,7 @@ UserSchema.pre("save", async function (next) {
   }
 });
 
-// ✅ Method to compare passwords during login
+// Compare passwords
 UserSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };

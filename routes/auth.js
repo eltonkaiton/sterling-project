@@ -1,7 +1,5 @@
-// routes/auth.js
 const express = require('express');
 const router = express.Router();
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
@@ -39,12 +37,10 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'Email already exists' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-
     const newUser = new User({
       name,
       email,
-      password: hashedPassword,
+      password, // pre-save hook will hash
       role,
       status: role === 'admin' ? 'active' : 'pending', // admins active by default
     });
@@ -78,28 +74,39 @@ router.post('/login', async (req, res) => {
   }
 
   try {
+    console.log(`🔐 Login attempt for: ${email} from ${source}`);
+
     const user = await User.findOne({ email: email.trim().toLowerCase() });
+
     if (!user) {
+      console.log('❌ User not found');
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
+    const isMatch = await user.matchPassword(password);
     if (!isMatch) {
+      console.log('❌ Incorrect password');
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    // Check status
+    // Check account status
     if (user.status !== 'active') {
+      console.log(`⚠️ Account not active (${user.status})`);
       return res.status(403).json({ message: `Account is currently ${user.status}.` });
     }
 
-    // Role-based access
+    // Web login restriction
     if (source === 'web' && user.role !== 'admin') {
+      console.log(`🚫 Web login denied for role: ${user.role}`);
       return res.status(403).json({ message: 'Only admins can log in via web' });
     }
 
-    if (source === 'mobile' && !['client', 'surveyor'].includes(user.role)) {
-      return res.status(403).json({ message: 'Access denied: Only clients or surveyors can log in via mobile' });
+    // ✅ Mobile login allowed roles (added loss_adjuster)
+    if (source === 'mobile' && !['client', 'surveyor', 'claim_analyst', 'loss_adjuster'].includes(user.role)) {
+      console.log(`🚫 Mobile login denied for role: ${user.role}`);
+      return res.status(403).json({ 
+        message: 'Access denied: Only clients, surveyors, claim analysts, or loss adjusters can log in via mobile' 
+      });
     }
 
     // Generate JWT
@@ -108,6 +115,8 @@ router.post('/login', async (req, res) => {
       JWT_SECRET,
       { expiresIn: '7d' }
     );
+
+    console.log(`✅ Login successful for ${user.role}: ${user.name}`);
 
     res.json({
       message: 'Login successful',
@@ -121,7 +130,7 @@ router.post('/login', async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('Login error:', err);
+    console.error('🔥 Login error:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
