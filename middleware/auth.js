@@ -1,7 +1,7 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
-const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey"; // ✅ fallback
+const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey"; // ✅ consistent fallback
 
 module.exports = async function (req, res, next) {
   try {
@@ -16,7 +16,7 @@ module.exports = async function (req, res, next) {
       return res.status(401).json({ message: "Invalid token format" });
     }
 
-    // ✅ Verify token using the same secret as in auth.js
+    // ✅ Verify token
     const decoded = jwt.verify(token, JWT_SECRET);
 
     // ✅ Ensure user still exists
@@ -29,8 +29,9 @@ module.exports = async function (req, res, next) {
     next();
   } catch (err) {
     console.error("Auth error:", err.message);
-    return res
-      .status(401)
-      .json({ message: "Unauthorized: Invalid or expired token" });
+    return res.status(401).json({
+      message: "Unauthorized: Invalid or expired token",
+      error: err.message,
+    });
   }
 };
