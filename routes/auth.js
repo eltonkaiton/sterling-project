@@ -10,11 +10,12 @@ const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
 // ======================================================
 router.post("/register", async (req, res) => {
   try {
-    let { name, email, password, role } = req.body;
+    let { name, email, phone, password, role } = req.body;
 
     // Trim and sanitize
     name = name?.trim();
     email = email?.trim().toLowerCase();
+    phone = phone?.trim();
     role = role || "client"; // default role
 
     if (!name || !email || !password) {
@@ -44,9 +45,10 @@ router.post("/register", async (req, res) => {
     const newUser = new User({
       name,
       email,
-      password, // password will be hashed in User model pre-save hook
+      phone: phone || "", // ✅ Include phone
+      password,
       role,
-      status: role === "admin" ? "active" : "pending", // admins active by default
+      status: role === "admin" ? "active" : "pending",
     });
 
     await newUser.save();
@@ -57,6 +59,7 @@ router.post("/register", async (req, res) => {
         userId: newUser._id,
         name: newUser.name,
         email: newUser.email,
+        phone: newUser.phone, // ✅ Include phone in response
         role: newUser.role,
         status: newUser.status,
       },
@@ -68,7 +71,7 @@ router.post("/register", async (req, res) => {
 });
 
 // ======================================================
-// 🔐 LOGIN USER
+// 🔐 LOGIN USER - WITH DEBUGGING
 // ======================================================
 router.post("/login", async (req, res) => {
   const { email, password, source } = req.body; // source: 'web' or 'mobile'
@@ -81,6 +84,18 @@ router.post("/login", async (req, res) => {
     console.log(`🔐 Login attempt for: ${email} from ${source}`);
 
     const user = await User.findOne({ email: email.trim().toLowerCase() });
+
+    // 🔍 ADDED DEBUGGING: Check what the database returns
+    console.log("🔍 DATABASE USER FIND RESULT:", {
+      found: !!user,
+      userId: user?._id,
+      name: user?.name,
+      email: user?.email,
+      phone: user?.phone,
+      phoneExists: !!user?.phone,
+      phoneValue: user?.phone || "NO PHONE IN DATABASE",
+      allFields: user ? Object.keys(user._doc) : 'no user'
+    });
 
     if (!user) {
       console.log("❌ User not found");
@@ -119,14 +134,15 @@ router.post("/login", async (req, res) => {
       "surveyor",
       "claim_analyst",
       "loss_adjuster",
-      "finance", // ✅ Added finance role for mobile
+      "finance",
+      "service_manager" // ✅ Added service_manager
     ];
 
     if (source === "mobile" && !allowedMobileRoles.includes(user.role)) {
       console.log(`🚫 Mobile login denied for role: ${user.role}`);
       return res.status(403).json({
         message:
-          "Access denied: Only clients, surveyors, claim analysts, loss adjusters, or finance users can log in via mobile.",
+          "Access denied: Only clients, surveyors, claim analysts, loss adjusters, finance, or service managers can log in via mobile.",
       });
     }
 
@@ -141,19 +157,88 @@ router.post("/login", async (req, res) => {
 
     console.log(`✅ Login successful for ${user.role}: ${user.name}`);
 
-    res.json({
+    // 🔍 ADDED DEBUGGING: Final response check
+    const responseData = {
       message: "Login successful",
       token,
       user: {
         userId: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone, // ✅ Include phone in login response
         role: user.role,
         status: user.status,
       },
-    });
+    };
+
+    console.log("📤 FINAL LOGIN RESPONSE:", JSON.stringify(responseData, null, 2));
+
+    res.json(responseData);
   } catch (err) {
     console.error("🔥 Login error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// ======================================================
+// 👤 GET USER PROFILE - WITH DEBUGGING
+// ======================================================
+router.get("/profile", async (req, res) => {
+  try {
+    // Get token from header
+    const token = req.header("Authorization")?.replace("Bearer ", "");
+    
+    if (!token) {
+      return res.status(401).json({ message: "No token provided" });
+    }
+
+    // Verify token
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    console.log("🔍 PROFILE REQUEST - Decoded token:", decoded);
+    
+    // Find user by ID
+    const user = await User.findById(decoded.id).select("-password");
+
+    // 🔍 ADDED DEBUGGING: Profile database query
+    console.log("🔍 PROFILE DATABASE RESULT:", {
+      found: !!user,
+      userId: user?._id,
+      name: user?.name,
+      email: user?.email,
+      phone: user?.phone,
+      phoneExists: !!user?.phone,
+      phoneValue: user?.phone || "NO PHONE IN PROFILE QUERY"
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Return user profile
+    const profileResponse = {
+      userId: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone, // ✅ Phone included
+      role: user.role,
+      status: user.status,
+    };
+
+    console.log("📤 PROFILE API RESPONSE:", JSON.stringify(profileResponse, null, 2));
+
+    res.json(profileResponse);
+  } catch (err) {
+    console.error("❌ Profile fetch error:", err);
+    
+    // Handle different JWT errors
+    if (err.name === "JsonWebTokenError") {
+      return res.status(401).json({ message: "Invalid token" });
+    }
+    if (err.name === "TokenExpiredError") {
+      return res.status(401).json({ message: "Token expired" });
+    }
+    
     res.status(500).json({ message: "Server error", error: err.message });
   }
 });
