@@ -107,7 +107,7 @@ const ClaimSchema = new mongoose.Schema(
 
     paymentStatus: {
       type: String,
-      enum: ["pending", "processed", "failed", "paid", null],
+      enum: ["pending", "processed", "failed", "paid", "received", null],
       default: "pending",
     },
 
