@@ -9,7 +9,9 @@ dotenv.config();
 
 const app = express();
 
-// ✅ CORS configuration: allow only your frontend
+// ---------------------------------------------------
+// ✅ CORS CONFIGURATION (FULLY FIXED)
+// ---------------------------------------------------
 const allowedOrigins = [
   'https://sterling-admin2.onrender.com', // deployed frontend
   'http://localhost:5173', // local dev frontend
@@ -17,21 +19,31 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function(origin, callback) {
-    if (!origin) return callback(null, true); // allow non-browser requests
+    if (!origin) return callback(null, true); // allow server-to-server requests
+
     if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
+      const msg = `🌐 CORS ERROR: Origin not allowed → ${origin}`;
       return callback(new Error(msg), false);
     }
+
     return callback(null, true);
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], // ✅ PATCH added
+  allowedHeaders: ['Content-Type', 'Authorization'],              // ✅ Required
+  credentials: true                                               // cookies / auth headers
 }));
 
+// Enable preflight for all routes
+app.options('*', cors());
+
+// ---------------------------------------------------
 // Middleware
+// ---------------------------------------------------
 app.use(express.json());
 
+// ---------------------------------------------------
 // Routes
+// ---------------------------------------------------
 app.use('/api/users', require('./routes/users'));
 app.use('/api/employees', require('./routes/employees'));
 app.use('/api/claims', require('./routes/claims'));
@@ -40,16 +52,19 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/surveyors', require('./routes/surveyors'));
 
-// MongoDB Atlas connection string
-const mongoURI = process.env.MONGO_URI || 
+// ---------------------------------------------------
+// MongoDB Atlas Connection
+// ---------------------------------------------------
+const mongoURI = process.env.MONGO_URI ||
   'mongodb+srv://eltonkaiton_db_user:GO6IUvwUYFnG4QPs@cluster0.gexh9uo.mongodb.net/Sterling-Database?retryWrites=true&w=majority&appName=Cluster0';
 
-// Connect to MongoDB
 mongoose.connect(mongoURI)
   .then(() => console.log('✅ MongoDB Atlas connected'))
   .catch((err) => console.log('❌ DB connection error:', err));
 
-// Start server
+// ---------------------------------------------------
+// Start Server
+// ---------------------------------------------------
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
