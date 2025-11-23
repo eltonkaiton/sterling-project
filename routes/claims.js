@@ -1,3 +1,4 @@
+// routes/claims.js
 const express = require("express");
 const router = express.Router();
 const Claim = require("../models/Claim");
@@ -18,7 +19,6 @@ const storage = multer.diskStorage({
     cb(null, unique + "-" + file.originalname);
   },
 });
-
 const upload = multer({ storage });
 
 // =============================================================
@@ -54,20 +54,10 @@ router.post("/create", auth, upload.array("evidenceFiles", 10), async (req, res)
 
     const claim = new Claim({
       userId: req.user._id,
-      fullName,
-      phone,
-      email,
-      policyNumber,
-      vesselName,
-      voyageRoute,
-      cargoDescription,
-      billOfLading,
-      incidentDate,
-      incidentPlace,
-      typeOfLoss,
-      causeOfLoss,
-      estimatedLoss,
-      description,
+      fullName, phone, email, policyNumber,
+      vesselName, voyageRoute, cargoDescription,
+      billOfLading, incidentDate, incidentPlace,
+      typeOfLoss, causeOfLoss, estimatedLoss, description,
       evidenceFiles,
       reference: generateReference(),
       status: "pending",
@@ -145,12 +135,11 @@ router.post("/surveyor/assign/:claimId", auth, async (req, res) => {
 });
 
 // =============================================================
-// 📌 GET ALL CLAIMS (WITH FILTERING, SEARCH & PAGINATION)
+// 📌 GET ALL CLAIMS (FILTER, SEARCH & PAGINATION)
 // =============================================================
-router.get("/all", auth, async (req, res) => {
+router.get("/all-claims", auth, async (req, res) => {
   try {
     let { status, search = "", page = 1, limit = 10, sort = "desc" } = req.query;
-
     page = Number(page);
     limit = Number(limit);
     const sortOrder = sort === "asc" ? 1 : -1;
@@ -173,7 +162,6 @@ router.get("/all", auth, async (req, res) => {
     if (req.user.role === "finance") query.status = { $in: ["assessed", "approved", "paid"] };
 
     const total = await Claim.countDocuments(query);
-
     const claims = await Claim.find(query)
       .sort({ createdAt: sortOrder })
       .skip((page - 1) * limit)
@@ -188,7 +176,7 @@ router.get("/all", auth, async (req, res) => {
 // =============================================================
 // 📌 VIEW SINGLE CLAIM
 // =============================================================
-router.get("/:id", auth, async (req, res) => {
+router.get("/view/:id", auth, async (req, res) => {
   try {
     const claim = await Claim.findById(req.params.id);
     if (!claim) return res.status(404).json({ message: "Claim not found" });
@@ -211,7 +199,7 @@ router.get("/:id", auth, async (req, res) => {
 // =============================================================
 // 📌 UPDATE CLAIM
 // =============================================================
-router.patch("/:id", auth, async (req, res) => {
+router.patch("/update/:id", auth, async (req, res) => {
   try {
     const claim = await Claim.findById(req.params.id);
     if (!claim) return res.status(404).json({ message: "Claim not found" });
@@ -241,13 +229,13 @@ router.patch("/:id", auth, async (req, res) => {
 });
 
 // =============================================================
-// Other PUT / PATCH routes remain unchanged, namespaced and valid
-// =============================================================
-router.patch("/:id/analyst-action", auth, async (req, res) => { /* unchanged */ });
-router.put("/:id/status", auth, async (req, res) => { /* unchanged */ });
-router.put("/:id/assess", auth, async (req, res) => { /* unchanged */ });
-router.put("/:id/payment-status", auth, async (req, res) => { /* unchanged */ });
-router.put("/:id/assign", auth, async (req, res) => { /* unchanged */ });
-router.delete("/:id", auth, async (req, res) => { /* unchanged */ });
+// Other PUT / PATCH / DELETE routes (already valid) can be namespaced similarly
+// Example:
+router.patch("/analyst-action/:id", auth, async (req, res) => { /* unchanged */ });
+router.put("/status/:id", auth, async (req, res) => { /* unchanged */ });
+router.put("/assess/:id", auth, async (req, res) => { /* unchanged */ });
+router.put("/payment-status/:id", auth, async (req, res) => { /* unchanged */ });
+router.put("/assign/:id", auth, async (req, res) => { /* unchanged */ });
+router.delete("/delete/:id", auth, async (req, res) => { /* unchanged */ });
 
 module.exports = router;
