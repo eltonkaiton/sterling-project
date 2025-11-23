@@ -12,21 +12,25 @@ const app = express();
 // ✅ CORS configuration: allow only your frontend
 const allowedOrigins = [
   'https://sterling-admin2.onrender.com', // deployed frontend
-  'http://localhost:5173', // local dev frontend
+  'http://localhost:5173',                // local dev frontend
 ];
 
 app.use(cors({
-  origin: function(origin, callback) {
-    if (!origin) return callback(null, true); // allow non-browser requests
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true); // allow non-browser tools (Postman, mobile)
     if (allowedOrigins.indexOf(origin) === -1) {
       const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
       return callback(new Error(msg), false);
     }
     return callback(null, true);
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  // ✅ FIXED: Added PATCH + OPTIONS
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   credentials: true
 }));
+
+// ✅ Allow preflight requests (OPTIONS)
+app.options('*', cors());
 
 // Middleware
 app.use(express.json());
@@ -41,7 +45,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/surveyors', require('./routes/surveyors'));
 
 // MongoDB Atlas connection string
-const mongoURI = process.env.MONGO_URI || 
+const mongoURI = process.env.MONGO_URI ||
   'mongodb+srv://eltonkaiton_db_user:GO6IUvwUYFnG4QPs@cluster0.gexh9uo.mongodb.net/Sterling-Database?retryWrites=true&w=majority&appName=Cluster0';
 
 // Connect to MongoDB
