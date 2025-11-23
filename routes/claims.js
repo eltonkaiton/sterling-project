@@ -35,19 +35,6 @@ const generateReference = () => {
 };
 
 // =============================================================
-// 🛠️ DEBUG ROUTE (Temporary - can remove later)
-// =============================================================
-router.get("/debug-routes", (req, res) => {
-  const routes = router.stack.map(layer => {
-    return {
-      method: Object.keys(layer.route?.methods || {})[0] || 'unknown',
-      path: layer.route?.path || 'unknown'
-    };
-  });
-  res.json(routes);
-});
-
-// =============================================================
 // ✅ CREATE CLAIM (WITH FILE UPLOAD SUPPORT)
 // =============================================================
 router.post("/", auth, upload.array("evidenceFiles", 10), async (req, res) => {
